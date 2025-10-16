@@ -21,11 +21,9 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str
     GOOGLE_CLASSROOM_SCOPES: str
 
-    # AI/ML (Opcional - comentado para desarrollo rápido)
-    # OLLAMA_BASE_URL: str = "http://localhost:11434"
-    # OLLAMA_MODEL: str = "llama3.2"
-    # EMBEDDINGS_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
-    # CHROMA_PERSIST_DIRECTORY: str = "./chroma_db"
+    # AI/ML
+    OPENAI_API_KEY: str
+    OPENAI_MODEL: str = "gpt-3.5-turbo"
 
     # CORS
     CORS_ORIGINS: List[str] = [

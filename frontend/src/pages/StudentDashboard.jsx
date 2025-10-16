@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Home, Clock, BarChart3, Calendar } from 'lucide-react'
+import { Home, Clock, BookOpen, Calendar, Sparkles, MessageCircle } from 'lucide-react'
+import ChatbotPopup from '../components/ChatbotPopup'
 
 function StudentDashboard() {
   const [user, setUser] = useState(null)
   const [dashboard, setDashboard] = useState(null)
+  const [courses, setCourses] = useState([])
+  const [prioritizedTasks, setPrioritizedTasks] = useState([])
   const [loadingDashboard, setLoadingDashboard] = useState(true)
+  const [loadingCourses, setLoadingCourses] = useState(false)
+  const [loadingPrioritizedTasks, setLoadingPrioritizedTasks] = useState(false)
   const [error, setError] = useState(null)
   const [activeTab, setActiveTab] = useState('home')
+  const [isChatOpen, setIsChatOpen] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -64,6 +70,76 @@ function StudentDashboard() {
     fetchDashboard()
   }, [navigate])
 
+  useEffect(() => {
+    if (activeTab === 'courses' && courses.length === 0 && !loadingCourses) {
+      const fetchCourses = async () => {
+        setLoadingCourses(true)
+        try {
+          const token = localStorage.getItem('access_token')
+          if (!token) {
+            navigate('/login')
+            return
+          }
+
+          const response = await fetch('http://127.0.0.1:8000/api/dashboard/student/courses', {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          })
+
+          if (!response.ok) {
+            throw new Error('No se pudieron cargar los cursos')
+          }
+
+          const data = await response.json()
+          setCourses(data.courses || [])
+        } catch (error) {
+          console.error('Error al cargar cursos:', error)
+        } finally {
+          setLoadingCourses(false)
+        }
+      }
+
+      fetchCourses()
+    }
+  }, [activeTab, courses.length, loadingCourses, navigate])
+
+  useEffect(() => {
+    if (activeTab === 'tasks' && prioritizedTasks.length === 0 && !loadingPrioritizedTasks) {
+      const fetchPrioritizedTasks = async () => {
+        setLoadingPrioritizedTasks(true)
+        try {
+          const token = localStorage.getItem('access_token')
+          if (!token) {
+            navigate('/login')
+            return
+          }
+
+          const response = await fetch('http://127.0.0.1:8000/api/dashboard/student/tasks/prioritized', {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          })
+
+          if (!response.ok) {
+            throw new Error('No se pudieron cargar las tareas priorizadas')
+          }
+
+          const data = await response.json()
+          setPrioritizedTasks(data.tasks || [])
+        } catch (error) {
+          console.error('Error al cargar tareas priorizadas:', error)
+          // Si falla la IA, usar las tareas normales del dashboard
+          setPrioritizedTasks(dashboard?.upcoming_tasks || [])
+        } finally {
+          setLoadingPrioritizedTasks(false)
+        }
+      }
+
+      fetchPrioritizedTasks()
+    }
+  }, [activeTab, prioritizedTasks.length, loadingPrioritizedTasks, navigate, dashboard])
+
   const handleLogout = () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('user')
@@ -74,7 +150,11 @@ function StudentDashboard() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-white">
         <img src="/logo.jpeg" alt="CALMA TECH" className="h-16 mb-4 animate-pulse" />
-        <div className="w-12 h-12 border-4 border-[#5B8FC3] border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex gap-2">
+          <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+          <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+          <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+        </div>
       </div>
     )
   }
@@ -237,34 +317,106 @@ function StudentDashboard() {
               <p className="text-sm mb-4 text-white/90">
                 ¿Necesitas ayuda con tus tareas o consejos de estudio? Habla con nuestro asistente inteligente.
               </p>
-              <button className="w-full bg-white text-[#5B8FC3] px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-colors">
+              <button
+                onClick={() => setIsChatOpen(true)}
+                className="w-full bg-white text-[#5B8FC3] px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-colors"
+              >
                 Iniciar Conversación
               </button>
             </div>
           </div>
         )}
 
-        {/* Tasks Tab */}
+        {/* Tasks Tab - Priorizadas por IA */}
         {activeTab === 'tasks' && (
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold text-gray-900 px-2">Todas las Tareas</h2>
+            {/* Header con badge de IA */}
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-2xl font-bold text-gray-900">Tareas Priorizadas</h2>
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-100 to-blue-100 rounded-full relative overflow-hidden">
+                <div className="absolute inset-0 animate-shimmer"></div>
+                <Sparkles className="w-4 h-4 text-[#5B8FC3] animate-sparkle" />
+                <span className="text-xs font-semibold text-[#5B8FC3] relative z-10">Ordenado por IA</span>
+              </div>
+            </div>
 
-            {dashboard?.upcoming_tasks?.length ? (
-              dashboard.upcoming_tasks.map((task, index) => (
-                <div key={`${task.title}-${index}`} className="bg-white rounded-2xl p-5 shadow-sm">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">{getTaskStatusIcon(task.status)}</span>
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-900">{task.title}</p>
-                      {task.course && <p className="text-sm text-gray-500 mt-1">{task.course}</p>}
-                      <div className="flex items-center gap-2 mt-2">
-                        <Clock className="w-4 h-4 text-[#5B8FC3]" />
-                        <p className="text-sm text-[#5B8FC3] font-medium">{task.due}</p>
+            {loadingPrioritizedTasks ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="flex gap-2">
+                  <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+              </div>
+            ) : prioritizedTasks?.length ? (
+              prioritizedTasks.map((task, index) => {
+                const priorityColors = {
+                  ALTA: 'bg-red-100 text-red-700 border-red-200',
+                  MEDIA: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+                  BAJA: 'bg-green-100 text-green-700 border-green-200'
+                }
+                const difficultyIcons = {
+                  ALTA: '🔥',
+                  MEDIA: '⚡',
+                  BAJA: '✨'
+                }
+
+                return (
+                  <button
+                    key={`${task.id || task.title}-${index}`}
+                    onClick={() => task.courseId && task.id && navigate(`/curso/${task.courseId}/tarea/${task.id}`)}
+                    className="bg-white rounded-2xl p-5 shadow-sm hover:shadow-md transition-all text-left w-full relative overflow-hidden group"
+                  >
+                    {/* Shimmer effect on hover */}
+                    {task.ai_analyzed && (
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 animate-shimmer"></div>
+                    )}
+
+                    <div className="flex items-start gap-3 relative z-10">
+                      <span className="text-2xl">{getTaskStatusIcon(task.status)}</span>
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <p className="font-bold text-gray-900 flex-1">{task.title}</p>
+                          {task.ai_analyzed && task.ai_priority && (
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${priorityColors[task.ai_priority] || priorityColors.MEDIA}`}>
+                                {difficultyIcons[task.ai_priority]} {task.ai_priority}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {task.course && <p className="text-sm text-gray-500 mt-1">{task.course}</p>}
+
+                        <div className="flex flex-wrap items-center gap-3 mt-2">
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-4 h-4 text-[#5B8FC3]" />
+                            <span className="text-sm text-[#5B8FC3] font-medium">{task.due}</span>
+                          </div>
+
+                          {task.ai_estimated_time && (
+                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                              ⏱️ {task.ai_estimated_time}
+                            </span>
+                          )}
+
+                          {task.ai_difficulty && (
+                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                              💪 {task.ai_difficulty}
+                            </span>
+                          )}
+                        </div>
+
+                        {task.ai_reason && (
+                          <p className="text-xs text-gray-600 mt-2 italic line-clamp-2">
+                            💡 {task.ai_reason}
+                          </p>
+                        )}
                       </div>
                     </div>
-                  </div>
-                </div>
-              ))
+                  </button>
+                )
+              })
             ) : (
               <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
                 <p className="text-6xl mb-4">🎉</p>
@@ -274,10 +426,66 @@ function StudentDashboard() {
             )}
           </div>
         )}
+
+        {/* Courses Tab */}
+        {activeTab === 'courses' && (
+          <div className="space-y-4">
+            <h2 className="text-2xl font-bold text-gray-900 px-2">Mis Materias</h2>
+
+            {loadingCourses ? (
+              <div className="flex justify-center items-center py-12">
+                <div className="flex gap-2">
+                  <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+              </div>
+            ) : courses?.length ? (
+              <div className="grid gap-4">
+                {courses.map((course, index) => (
+                  <button
+                    key={`${course.id}-${index}`}
+                    onClick={() => navigate(`/curso/${course.id}`)}
+                    className="bg-white rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow text-left w-full"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 bg-gradient-to-br from-[#5B8FC3] to-[#4A7FB0] rounded-xl flex items-center justify-center flex-shrink-0">
+                        <BookOpen className="w-7 h-7 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-bold text-gray-900 line-clamp-2">{course.name}</h3>
+                        {course.section && (
+                          <p className="text-sm text-gray-500 mt-1">Sección {course.section}</p>
+                        )}
+                        {course.teacher && (
+                          <p className="text-sm text-gray-600 mt-1">Profesor: {course.teacher}</p>
+                        )}
+                        <div className="flex items-center gap-4 mt-3">
+                          {course.studentCount > 0 && (
+                            <div className="flex items-center gap-1 text-sm text-gray-600">
+                              <span>👥</span>
+                              <span>{course.studentCount} estudiantes</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
+                <p className="text-6xl mb-4">📚</p>
+                <p className="text-xl font-semibold text-gray-900 mb-2">Sin materias</p>
+                <p className="text-gray-600">No estás inscrito en ninguna materia aún</p>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-[#5B8FC3] shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 bg-[#5B8FC3] shadow-lg z-50">
         <div className="max-w-4xl mx-auto px-4 py-3">
           <div className="flex items-center justify-around">
             <button
@@ -301,13 +509,13 @@ function StudentDashboard() {
             </button>
 
             <button
-              onClick={() => setActiveTab('stats')}
+              onClick={() => setActiveTab('courses')}
               className={`flex flex-col items-center gap-1 transition-all ${
-                activeTab === 'stats' ? 'text-white' : 'text-white/60'
+                activeTab === 'courses' ? 'text-white' : 'text-white/60'
               }`}
             >
-              <BarChart3 className="w-6 h-6" />
-              <span className="text-xs font-medium">Estadísticas</span>
+              <BookOpen className="w-6 h-6" />
+              <span className="text-xs font-medium">Materias</span>
             </button>
 
             <button
@@ -322,6 +530,29 @@ function StudentDashboard() {
           </div>
         </div>
       </nav>
+
+      {/* Chatbot Floating Button */}
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-r from-[#5B8FC3] to-[#4A7FB0] text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center z-40 group"
+        >
+          <MessageCircle className="w-6 h-6" />
+          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full animate-pulse"></span>
+        </button>
+      )}
+
+      {/* Chatbot Popup */}
+      <ChatbotPopup
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        userContext={{
+          user: user,
+          stats: dashboard?.stats,
+          upcomingTasks: prioritizedTasks?.slice(0, 5),
+          courses: courses?.slice(0, 3)
+        }}
+      />
     </div>
   )
 }

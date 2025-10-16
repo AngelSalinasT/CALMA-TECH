@@ -6,6 +6,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from app.api.auth import get_credentials_for_user
+from app.services.ai_task_prioritizer import prioritize_tasks_with_ai
 
 
 def _build_service(credentials):
@@ -233,6 +234,238 @@ def get_student_dashboard_data(google_id: str) -> Dict[str, Any]:
     }
 
 
+def get_student_courses(google_id: str) -> Dict[str, Any]:
+    """
+    Obtiene la lista completa de cursos del estudiante con información detallada.
+    """
+    credentials = get_credentials_for_user(google_id)
+    service = _build_service(credentials)
+
+    try:
+        courses = _list_courses(
+            service,
+            studentId="me",
+            courseStates=["ACTIVE"],
+            pageSize=20
+        )
+    except HttpError as exc:
+        raise HttpError(exc.resp, exc.content, uri=exc.uri) from exc
+
+    courses_list = []
+    for course in courses:
+        # Obtener el número de estudiantes
+        student_count = 0
+        try:
+            students_resp = service.courses().students().list(courseId=course["id"]).execute()
+            student_count = len(students_resp.get("students", []))
+        except HttpError:
+            pass
+
+        # Obtener información del profesor
+        teacher_name = None
+        try:
+            teachers_resp = service.courses().teachers().list(courseId=course["id"]).execute()
+            teachers = teachers_resp.get("teachers", [])
+            if teachers:
+                teacher_profile = teachers[0].get("profile", {})
+                teacher_name = teacher_profile.get("name", {}).get("fullName")
+        except HttpError:
+            pass
+
+        courses_list.append({
+            "id": course.get("id"),
+            "name": course.get("name"),
+            "section": course.get("section"),
+            "description": course.get("descriptionHeading"),
+            "room": course.get("room"),
+            "teacher": teacher_name,
+            "studentCount": student_count,
+            "courseState": course.get("courseState"),
+            "alternateLink": course.get("alternateLink"),
+        })
+
+    return {"courses": courses_list}
+
+
+def get_course_detail(google_id: str, course_id: str) -> Dict[str, Any]:
+    """
+    Obtiene detalles completos de un curso específico incluyendo tareas, anuncios y materiales.
+    """
+    credentials = get_credentials_for_user(google_id)
+    service = _build_service(credentials)
+
+    # Obtener información del curso
+    try:
+        course = service.courses().get(id=course_id).execute()
+    except HttpError as exc:
+        raise HttpError(exc.resp, exc.content, uri=exc.uri) from exc
+
+    # Obtener todas las tareas
+    try:
+        coursework_items = service.courses().courseWork().list(
+            courseId=course_id,
+            pageSize=100,
+            orderBy="dueDate desc"
+        ).execute().get("courseWork", [])
+    except HttpError:
+        coursework_items = []
+
+    tasks = []
+    for work in coursework_items:
+        due_dt = _parse_due_datetime(work.get("dueDate"), work.get("dueTime"))
+        tasks.append({
+            "id": work.get("id"),
+            "title": work.get("title"),
+            "description": work.get("description"),
+            "dueDate": _humanize_due_date(due_dt),
+            "status": _evaluate_task_status(due_dt),
+            "workType": work.get("workType"),
+            "maxPoints": work.get("maxPoints"),
+            "alternateLink": work.get("alternateLink"),
+            "state": work.get("state"),
+        })
+
+    # Obtener anuncios
+    try:
+        announcement_items = service.courses().announcements().list(
+            courseId=course_id,
+            pageSize=20,
+            orderBy="updateTime desc"
+        ).execute().get("announcements", [])
+    except HttpError:
+        announcement_items = []
+
+    announcements = []
+    for announcement in announcement_items:
+        update_dt = _parse_iso_datetime(announcement.get("updateTime"))
+        announcements.append({
+            "id": announcement.get("id"),
+            "text": announcement.get("text"),
+            "creationTime": _humanize_timestamp(update_dt),
+            "alternateLink": announcement.get("alternateLink"),
+        })
+
+    # Obtener materiales del curso
+    try:
+        materials = service.courses().courseWorkMaterials().list(
+            courseId=course_id,
+            pageSize=20,
+            orderBy="updateTime desc"
+        ).execute().get("courseWorkMaterial", [])
+    except HttpError:
+        materials = []
+
+    materials_list = []
+    for material in materials:
+        materials_list.append({
+            "id": material.get("id"),
+            "title": material.get("title"),
+            "description": material.get("description"),
+            "alternateLink": material.get("alternateLink"),
+        })
+
+    return {
+        "course": {
+            "id": course.get("id"),
+            "name": course.get("name"),
+            "section": course.get("section"),
+            "description": course.get("descriptionHeading"),
+            "room": course.get("room"),
+            "alternateLink": course.get("alternateLink"),
+        },
+        "tasks": tasks,
+        "announcements": announcements,
+        "materials": materials_list,
+    }
+
+
+def get_assignment_detail(google_id: str, course_id: str, assignment_id: str) -> Dict[str, Any]:
+    """
+    Obtiene detalles completos de una tarea específica incluyendo el estado de entrega del estudiante.
+    """
+    credentials = get_credentials_for_user(google_id)
+    service = _build_service(credentials)
+
+    # Obtener información de la tarea
+    try:
+        assignment = service.courses().courseWork().get(
+            courseId=course_id,
+            id=assignment_id
+        ).execute()
+    except HttpError as exc:
+        raise HttpError(exc.resp, exc.content, uri=exc.uri) from exc
+
+    # Obtener el estado de entrega del estudiante
+    submission = None
+    try:
+        submissions = service.courses().courseWork().studentSubmissions().list(
+            courseId=course_id,
+            courseWorkId=assignment_id,
+            userId="me"
+        ).execute().get("studentSubmissions", [])
+        if submissions:
+            submission = submissions[0]
+    except HttpError:
+        pass
+
+    due_dt = _parse_due_datetime(assignment.get("dueDate"), assignment.get("dueTime"))
+
+    # Parsear materiales adjuntos
+    materials = []
+    for material in assignment.get("materials", []):
+        mat_data = {
+            "type": None,
+            "title": None,
+            "url": None,
+        }
+
+        if "driveFile" in material:
+            drive_file = material["driveFile"]["driveFile"]
+            mat_data["type"] = "file"
+            mat_data["title"] = drive_file.get("title")
+            mat_data["url"] = drive_file.get("alternateLink")
+        elif "link" in material:
+            link = material["link"]
+            mat_data["type"] = "link"
+            mat_data["title"] = link.get("title")
+            mat_data["url"] = link.get("url")
+        elif "youtubeVideo" in material:
+            video = material["youtubeVideo"]
+            mat_data["type"] = "video"
+            mat_data["title"] = video.get("title")
+            mat_data["url"] = video.get("alternateLink")
+
+        if mat_data["type"]:
+            materials.append(mat_data)
+
+    # Información de la entrega del estudiante
+    submission_info = None
+    if submission:
+        submission_info = {
+            "state": submission.get("state"),
+            "assignedGrade": submission.get("assignedGrade"),
+            "draftGrade": submission.get("draftGrade"),
+            "alternateLink": submission.get("alternateLink"),
+            "late": submission.get("late"),
+        }
+
+    return {
+        "assignment": {
+            "id": assignment.get("id"),
+            "title": assignment.get("title"),
+            "description": assignment.get("description"),
+            "dueDate": _humanize_due_date(due_dt),
+            "status": _evaluate_task_status(due_dt),
+            "workType": assignment.get("workType"),
+            "maxPoints": assignment.get("maxPoints"),
+            "alternateLink": assignment.get("alternateLink"),
+            "state": assignment.get("state"),
+            "materials": materials,
+        },
+        "submission": submission_info,
+    }
+
+
 def get_teacher_dashboard_data(google_id: str) -> Dict[str, Any]:
     credentials = get_credentials_for_user(google_id)
     service = _build_service(credentials)
@@ -303,4 +536,67 @@ def get_teacher_dashboard_data(google_id: str) -> Dict[str, Any]:
         "pending_assignments": pending_assignments,
         "alerts": alerts,
         "general_stats": general_stats,
+    }
+
+
+def get_prioritized_tasks_with_ai(google_id: str) -> Dict[str, Any]:
+    """
+    Obtiene las tareas del estudiante y las prioriza usando IA.
+    """
+    credentials = get_credentials_for_user(google_id)
+    service = _build_service(credentials)
+
+    try:
+        courses = _list_courses(
+            service,
+            studentId="me",
+            courseStates=["ACTIVE"],
+            pageSize=10
+        )
+    except HttpError as exc:
+        raise HttpError(exc.resp, exc.content, uri=exc.uri) from exc
+
+    all_tasks: List[Dict[str, Any]] = []
+
+    for course in itertools.islice(courses, 0, 10):
+        try:
+            coursework_items = _list_coursework(service, course["id"], page_size=50)
+        except HttpError:
+            coursework_items = []
+
+        for work in coursework_items:
+            due_dt = _parse_due_datetime(work.get("dueDate"), work.get("dueTime"))
+
+            # Incluir más información para que la IA pueda analizar mejor
+            all_tasks.append({
+                "id": work.get("id"),
+                "courseId": course.get("id"),
+                "title": work.get("title", "Sin título"),
+                "description": work.get("description", ""),
+                "course": course.get("name"),
+                "due": _humanize_due_date(due_dt),
+                "status": _evaluate_task_status(due_dt),
+                "maxPoints": work.get("maxPoints"),
+                "workType": work.get("workType"),
+                "_due_dt": due_dt,
+            })
+
+    # Filtrar solo tareas pendientes/próximas
+    now = datetime.now(timezone.utc)
+    pending_tasks = [
+        task for task in all_tasks
+        if task.get("_due_dt") is None or _ensure_aware(task.get("_due_dt")) >= now - timedelta(days=1)
+    ]
+
+    # Priorizar con IA
+    prioritized_tasks = prioritize_tasks_with_ai(pending_tasks)
+
+    # Remover campo temporal _due_dt
+    for task in prioritized_tasks:
+        task.pop("_due_dt", None)
+
+    return {
+        "tasks": prioritized_tasks[:20],  # Limitar a 20 tareas más importantes
+        "total_analyzed": len(pending_tasks),
+        "ai_powered": True
     }

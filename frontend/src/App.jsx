@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import Login from './pages/Login'
 import StudentDashboard from './pages/StudentDashboard'
 import TeacherDashboard from './pages/TeacherDashboard'
+import CourseDetail from './pages/CourseDetail'
+import AssignmentDetail from './pages/AssignmentDetail'
 
 function HomePage() {
   return (
@@ -49,6 +51,8 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard/alumno" element={<StudentDashboard />} />
         <Route path="/dashboard/profesor" element={<TeacherDashboard />} />
+        <Route path="/curso/:courseId" element={<CourseDetail />} />
+        <Route path="/curso/:courseId/tarea/:assignmentId" element={<AssignmentDetail />} />
       </Routes>
     </BrowserRouter>
   )
