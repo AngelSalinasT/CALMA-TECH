@@ -32,7 +32,7 @@ class MensajeChat(Base):
     conversacion_id = Column(UUID(as_uuid=True), ForeignKey("conversaciones_chat.id", ondelete="CASCADE"), index=True)
     remitente = Column(String(50), nullable=False)  # 'user' o 'bot'
     contenido = Column(Text, nullable=False)
-    metadata = Column(JSONB)
+    metadata_json = Column("metadata", JSONB)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

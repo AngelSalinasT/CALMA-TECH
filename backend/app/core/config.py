@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # AI/ML
     OPENAI_API_KEY: str
     OPENAI_MODEL: str = "gpt-3.5-turbo"
+    CHAT_OPENAI_MODEL: str = "gpt-4o"
+    CHAT_TEMPERATURE: float = 0.7
+    CHAT_SESSION_TTL_SECONDS: int = 1800  # 30 minutes
+    CHAT_MEMORY_MAX_MESSAGES: int = 20
+    CHAT_BUFFER_SECONDS: float = 0.6
 
     # CORS
     CORS_ORIGINS: List[str] = [

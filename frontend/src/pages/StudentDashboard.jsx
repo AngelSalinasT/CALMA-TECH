@@ -182,6 +182,70 @@ function StudentDashboard() {
     return '✅'
   }
 
+  const upcomingTasks = dashboard?.upcoming_tasks || []
+  const monthFormatter = new Intl.DateTimeFormat('es-MX', { month: 'long' })
+  const monthName = monthFormatter.format(new Date())
+  const activeCourses = dashboard?.stats?.active_courses ?? 0
+  const pendingTasks = dashboard?.stats?.pending_tasks ?? upcomingTasks.length
+  const attendanceRate = Math.min(
+    100,
+    Math.max(85, 93 + activeCourses - Math.floor(pendingTasks / 2))
+  )
+  const presentDays = 16 + Math.max(0, activeCourses - 1)
+  const absences = Math.max(0, Math.min(3, Math.ceil(pendingTasks / 3)))
+  const lateArrivals = Math.max(0, pendingTasks > 5 ? 2 : 1)
+  const streak =
+    attendanceRate >= 95 ? '6 días seguidos asistiendo' : '4 días seguidos asistiendo'
+
+  const attendanceRecent = upcomingTasks.slice(0, 3).map((task, index) => {
+    const descriptors = ['Hoy', 'Ayer', 'Hace 2 días']
+    const statuses = ['Presente', 'Participación activa', 'Preparación previa']
+    const icons = ['✅', '🌟', '📝']
+    const accents = ['text-green-600', 'text-indigo-500', 'text-[#5B8FC3]']
+    return {
+      label: `${descriptors[index] || 'Últimos días'} · ${task.course || 'Clase'}`,
+      status: statuses[index] || 'Presente',
+      note: task.title ? `Te preparaste para ${task.title}` : 'Seguiste la clase sin problemas',
+      icon: icons[index] || '✅',
+      accent: accents[index] || 'text-green-600'
+    }
+  })
+
+  while (attendanceRecent.length < 3) {
+    const fallbackIndex = attendanceRecent.length
+    const fallbackDescriptors = ['Hoy', 'Ayer', 'Hace 2 días']
+    const fallbackStatuses = ['Presente', 'Participación activa', 'Preparación previa']
+    const fallbackIcons = ['✅', '🌟', '📝']
+    const fallbackAccents = ['text-green-600', 'text-indigo-500', 'text-[#5B8FC3]']
+    attendanceRecent.push({
+      label: `${fallbackDescriptors[fallbackIndex]} · Clase`,
+      status: fallbackStatuses[fallbackIndex],
+      note: 'Clase regular sin incidencias',
+      icon: fallbackIcons[fallbackIndex],
+      accent: fallbackAccents[fallbackIndex]
+    })
+  }
+
+  const nextTask = upcomingTasks[0]
+  const dueLabel =
+    typeof nextTask?.due === 'string' ? nextTask.due.toLowerCase() : 'pronto'
+  const attendanceUpcoming = nextTask
+    ? `Recuerda llegar puntual a ${nextTask.course}. ${nextTask.title} se entrega ${dueLabel}.`
+    : 'Mantén tu ritmo; llegar cinco minutos antes te ayuda a empezar sin estrés.'
+
+  const attendanceMock = {
+    summary: {
+      month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+      attendanceRate,
+      presentDays,
+      absences,
+      lateArrivals,
+      streak
+    },
+    recent: attendanceRecent,
+    upcoming: attendanceUpcoming
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
@@ -189,13 +253,14 @@ function StudentDashboard() {
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#5B8FC3] rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/>
-                </svg>
-              </div>
+              <img
+                src="/logo.jpeg"
+                alt="CALMA TECH"
+                className="w-12 h-12 rounded-full object-cover shadow-sm border border-[#5B8FC3]/40"
+              />
               <div>
                 <h1 className="text-lg font-bold text-[#5B8FC3]">CALMA TECH</h1>
+                <p className="text-xs text-gray-500">Aprende mejor, respira mejor</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -254,6 +319,65 @@ function StudentDashboard() {
               </div>
             </div>
 
+            {/* Attendance Snapshot */}
+            <div className="bg-white rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase text-gray-500 font-semibold">
+                    Asistencia · {attendanceMock.summary.month}
+                  </p>
+                  <h3 className="text-lg font-bold text-gray-900 mt-1">
+                    Tu ritmo de asistencia
+                  </h3>
+                  <p className="text-xs text-gray-500 mt-1">{attendanceMock.summary.streak}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-bold text-[#5B8FC3]">
+                    {attendanceMock.summary.attendanceRate}%
+                  </p>
+                  <p className="text-xs text-gray-500">Asistencia del mes</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 mt-5 text-sm">
+                <div className="bg-blue-50 rounded-xl px-4 py-3">
+                  <p className="text-xs text-blue-700 uppercase font-semibold">Presentes</p>
+                  <p className="text-xl font-bold text-blue-900 mt-1">
+                    {attendanceMock.summary.presentDays}
+                  </p>
+                </div>
+                <div className="bg-orange-50 rounded-xl px-4 py-3">
+                  <p className="text-xs text-orange-700 uppercase font-semibold">Ausencias</p>
+                  <p className="text-xl font-bold text-orange-900 mt-1">
+                    {attendanceMock.summary.absences}
+                  </p>
+                </div>
+                <div className="bg-emerald-50 rounded-xl px-4 py-3">
+                  <p className="text-xs text-emerald-700 uppercase font-semibold">Retardos</p>
+                  <p className="text-xl font-bold text-emerald-900 mt-1">
+                    {attendanceMock.summary.lateArrivals}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                {attendanceMock.recent.map((entry, index) => (
+                  <div key={`${entry.label}-${index}`} className="flex items-start gap-3">
+                    <div className="text-xl">{entry.icon}</div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-gray-900">{entry.label}</p>
+                      <p className={`text-xs font-medium ${entry.accent}`}>{entry.status}</p>
+                      <p className="text-xs text-gray-500 mt-1">{entry.note}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 p-4 bg-blue-50 rounded-xl text-sm text-[#2F4A6A] leading-relaxed">
+                {attendanceMock.upcoming}
+              </div>
+            </div>
+
             {/* Upcoming Tasks */}
             <div className="bg-white rounded-2xl p-5 shadow-sm">
               <div className="flex items-center justify-between mb-4">
@@ -303,27 +427,6 @@ function StudentDashboard() {
               </div>
             )}
 
-            {/* AI Assistant CTA */}
-            <div className="bg-gradient-to-r from-[#5B8FC3] to-[#4A7FB0] rounded-2xl p-6 shadow-sm text-white">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <span className="text-2xl">🤖</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold">Asistente IA</h3>
-                  <p className="text-sm text-white/80">Aquí para ayudarte</p>
-                </div>
-              </div>
-              <p className="text-sm mb-4 text-white/90">
-                ¿Necesitas ayuda con tus tareas o consejos de estudio? Habla con nuestro asistente inteligente.
-              </p>
-              <button
-                onClick={() => setIsChatOpen(true)}
-                className="w-full bg-white text-[#5B8FC3] px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-colors"
-              >
-                Iniciar Conversación
-              </button>
-            </div>
           </div>
         )}
 
@@ -550,7 +653,8 @@ function StudentDashboard() {
           user: user,
           stats: dashboard?.stats,
           upcomingTasks: prioritizedTasks?.slice(0, 5),
-          courses: courses?.slice(0, 3)
+          courses: courses?.slice(0, 3),
+          attendance: attendanceMock
         }}
       />
     </div>
