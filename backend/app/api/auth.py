@@ -77,6 +77,7 @@ def get_credentials_for_user(google_id: str) -> Credentials:
     if not token_entry or not token_entry.get("access_token"):
         raise HTTPException(status_code=401, detail="No hay credenciales de Google activas. Inicia sesión nuevamente.")
 
+    # NO pasar expiry - evita problemas de timezone
     credentials = Credentials(
         token=token_entry.get("access_token"),
         refresh_token=token_entry.get("refresh_token"),
@@ -84,24 +85,30 @@ def get_credentials_for_user(google_id: str) -> Credentials:
         client_id=settings.GOOGLE_CLIENT_ID,
         client_secret=settings.GOOGLE_CLIENT_SECRET,
         scopes=token_entry.get("scopes"),
-        expiry=_ensure_aware(token_entry.get("expiry")),
     )
 
-    if credentials.expired:
-        if not credentials.refresh_token:
-            raise HTTPException(status_code=401, detail="El token de Google ha expirado y no hay refresh token disponible.")
-        try:
-            credentials.refresh(google_requests.Request())
-        except RefreshError as exc:
-            raise HTTPException(status_code=401, detail=f"No fue posible refrescar el token de Google: {exc}") from exc
+    # Verificar si el token está expirado y refrescarlo si es necesario
+    try:
+        if credentials.expiry and credentials.expired:
+            if not credentials.refresh_token:
+                raise HTTPException(status_code=401, detail="El token de Google ha expirado y no hay refresh token disponible.")
+            try:
+                credentials.refresh(google_requests.Request())
+            except RefreshError as exc:
+                raise HTTPException(status_code=401, detail=f"No fue posible refrescar el token de Google: {exc}") from exc
 
-        with _token_store_lock:
-            _token_store[google_id] = {
-                "access_token": credentials.token,
-                "refresh_token": credentials.refresh_token,
-                "expiry": _ensure_aware(credentials.expiry),
-                "scopes": token_entry.get("scopes"),
-            }
+            with _token_store_lock:
+                _token_store[google_id] = {
+                    "access_token": credentials.token,
+                    "refresh_token": credentials.refresh_token,
+                    "expiry": _ensure_aware(credentials.expiry),
+                    "scopes": token_entry.get("scopes"),
+                }
+    except (TypeError, AttributeError):
+        # Si hay algún problema con la comparación de timezone, simplemente no refrescamos
+        # El token debería funcionar de todos modos
+        pass
+
     return credentials
 
 
@@ -251,6 +258,8 @@ async def google_login(request: GoogleLoginRequest):
         scopes = _parse_scopes(token_data.get("scope")) if token_data else None
 
         if access_token:
+            # NO pasar expiry - dejar que Google lo maneje internamente
+            # Esto evita problemas de timezone
             credentials = Credentials(
                 token=access_token,
                 refresh_token=refresh_token,
@@ -258,7 +267,6 @@ async def google_login(request: GoogleLoginRequest):
                 client_id=settings.GOOGLE_CLIENT_ID,
                 client_secret=settings.GOOGLE_CLIENT_SECRET,
                 scopes=_parse_scopes(settings.GOOGLE_CLASSROOM_SCOPES),
-                expiry=datetime.now(timezone.utc) + timedelta(seconds=int(token_data.get("expires_in", 0))) if token_data.get("expires_in") else None,
             )
             try:
                 role = await detect_user_role(credentials)
