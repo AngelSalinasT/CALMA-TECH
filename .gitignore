@@ -1,0 +1,49 @@
+# Node
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+backend/venv/
+backend/env/
+backend/.env
+backend/alembic/versions/*.py
+!backend/alembic/versions/__init__.py
+
+# Logs
+*.log
+backend_uvicorn.log
+logs/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~
+
+# Data / Secrets
+backend/google_credentials.json
+backend/google_credentials_web.json
+*client_secret*.json
+.env
+.env.*
+
+# Build / Misc
+backend/build/
+backend/dist/
+backend/chroma_db/
+chroma_db/
+
+# Database files
+*.db
+*.sqlite*
+
+# Gradle or other temporary
+.gradle/
