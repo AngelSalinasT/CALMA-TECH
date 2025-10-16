@@ -1,66 +1,86 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import {
+  BarChart3,
+  CalendarDays,
+  ClipboardList,
+  GraduationCap,
+  Users2,
+  TrendingUp,
+  AlertTriangle,
+  LineChart,
+  Award
+} from 'lucide-react'
+
+import { DEFAULT_TEACHER, MOCK_DASHBOARD } from '../data/teacherMock'
+
+const STAT_ICON_RENDERERS = {
+  book: () => (
+    <svg
+      className="w-6 h-6 text-[#5B8FC3]"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z" />
+    </svg>
+  ),
+  users: () => <Users2 className="w-6 h-6 text-[#5B8FC3]" />,
+  calendar: () => <CalendarDays className="w-6 h-6 text-[#4A7FB0]" />,
+  clipboard: () => <ClipboardList className="w-6 h-6 text-[#347FB5]" />
+}
+
+const ACTION_LINKS = [
+  { to: '/dashboard/profesor/grupos', label: 'Gestionar grupos', icon: '👥' },
+  { to: '/dashboard/profesor/grupos/:courseId/:groupId/asistencia', label: 'Tomar asistencia', icon: '🗓️' },
+  { to: '/dashboard/profesor/grupos/:courseId/:groupId/calificaciones', label: 'Registrar calificaciones', icon: '📝' }
+]
 
 function TeacherDashboard() {
-  const [user, setUser] = useState(null)
-  const [dashboard, setDashboard] = useState(null)
-  const [loadingDashboard, setLoadingDashboard] = useState(true)
-  const [error, setError] = useState(null)
   const navigate = useNavigate()
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [selectedCourseId, setSelectedCourseId] = useState(MOCK_DASHBOARD.courses[0].id)
+  const [selectedGroupId, setSelectedGroupId] = useState(MOCK_DASHBOARD.courses[0].groups[0].id)
+  const [groupTab, setGroupTab] = useState('overview')
 
   useEffect(() => {
-    // Obtener información del usuario desde localStorage
-    const userData = localStorage.getItem('user')
-    if (!userData) {
-      navigate('/login')
-      return
-    }
-
-    const parsedUser = JSON.parse(userData)
-
-    // Verificar que sea profesor
-    if (parsedUser.role !== 'profesor') {
-      navigate('/dashboard/alumno')
-      return
-    }
-
-    setUser(parsedUser)
-
-    const fetchDashboard = async () => {
+    const stored = localStorage.getItem('user')
+    if (stored) {
       try {
-        const token = localStorage.getItem('access_token')
-        if (!token) {
-          navigate('/login')
-          return
-        }
-
-        const response = await fetch('http://127.0.0.1:8000/api/dashboard/teacher', {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        })
-        if (!response.ok) {
-          const errorBody = await response.json().catch(() => ({}))
-          const detailMessage = errorBody?.detail || 'No se pudo cargar la información del dashboard'
-          if (response.status === 401) {
-            console.warn('Sesión expirada o sin credenciales, redirigiendo al login')
-            navigate('/login')
-            return
-          }
-          throw new Error(detailMessage)
-        }
-        const data = await response.json()
-        setDashboard(data)
-      } catch (error) {
-        console.error('Error al cargar dashboard de profesor:', error)
-        setError(error.message || 'Error desconocido al cargar la información')
-      } finally {
-        setLoadingDashboard(false)
+        const parsed = JSON.parse(stored)
+        parsed.role = 'profesor'
+        setUser({ ...DEFAULT_TEACHER, ...parsed })
+      } catch {
+        setUser(DEFAULT_TEACHER)
       }
+    } else {
+      setUser(DEFAULT_TEACHER)
     }
+    setLoading(false)
+  }, [])
 
-    fetchDashboard()
-  }, [navigate])
+  useEffect(() => {
+    const course = MOCK_DASHBOARD.courses.find((item) => item.id === selectedCourseId)
+    if (course && !course.groups.some((group) => group.id === selectedGroupId)) {
+      setSelectedGroupId(course.groups[0].id)
+      setGroupTab('overview')
+    }
+  }, [selectedCourseId, selectedGroupId])
+
+  const selectedCourse = useMemo(
+    () => MOCK_DASHBOARD.courses.find((item) => item.id === selectedCourseId),
+    [selectedCourseId]
+  )
+
+  const selectedGroup = useMemo(
+    () => selectedCourse?.groups.find((group) => group.id === selectedGroupId),
+    [selectedCourse, selectedGroupId]
+  )
 
   const handleLogout = () => {
     localStorage.removeItem('access_token')
@@ -68,292 +88,416 @@ function TeacherDashboard() {
     navigate('/')
   }
 
-  if (!user) {
+  if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white">
+        <img src="/logo.jpeg" alt="CALMA TECH" className="h-16 mb-4 animate-pulse" />
+        <div className="flex gap-2">
+          <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+          <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+          <div className="w-3 h-3 bg-[#5B8FC3] rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+        </div>
       </div>
     )
-  }
-
-  if (loadingDashboard) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center gap-4">
-        <h2 className="text-2xl font-semibold text-gray-800">
-          No pudimos cargar tu panel
-        </h2>
-        <p className="text-gray-600">{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="btn-primary"
-        >
-          Reintentar
-        </button>
-      </div>
-    )
-  }
-
-  const statBlocks = dashboard?.stats || {}
-
-  const getToneClasses = (tone) => {
-    switch (tone) {
-      case 'blue':
-        return {
-          container: 'p-4 bg-blue-50 border-l-4 border-blue-500 rounded',
-          accent: 'text-blue-600',
-        }
-      case 'green':
-        return {
-          container: 'p-4 bg-green-50 border-l-4 border-green-500 rounded',
-          accent: 'text-green-600',
-        }
-      case 'yellow':
-        return {
-          container: 'p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded',
-          accent: 'text-yellow-600',
-        }
-      case 'orange':
-        return {
-          container: 'p-4 bg-orange-50 border-l-4 border-orange-500 rounded',
-          accent: 'text-orange-600',
-        }
-      case 'purple':
-        return {
-          container: 'p-4 bg-purple-50 border-l-4 border-purple-500 rounded',
-          accent: 'text-purple-600',
-        }
-      default:
-        return {
-          container: 'p-4 bg-gray-50 border-l-4 border-gray-300 rounded',
-          accent: 'text-gray-600',
-        }
-    }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <img src="/logo.jpeg" alt="CALMA TECH" className="h-12" />
-              <h1 className="text-2xl font-bold text-primary">Panel de Profesor</h1>
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-white shadow-sm sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <img src="/logo.jpeg" alt="CALMA TECH" className="w-12 h-12 rounded-full object-cover shadow-sm" />
+            <div>
+              <h1 className="text-xl font-bold text-[#2F4A6A]">Panel docente · CALMA TECH</h1>
+              <p className="text-sm text-gray-500">Monitorea el aprendizaje y bienestar de tus grupos</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="font-semibold text-gray-900">{user.name}</p>
-                <p className="text-sm text-gray-500">{user.email}</p>
-              </div>
-              {user.picture && (
-                <img src={user.picture} alt={user.name} className="w-10 h-10 rounded-full" />
-              )}
-              <button onClick={handleLogout} className="btn-secondary">
-                Cerrar Sesión
-              </button>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="font-semibold text-gray-900">{user.name}</p>
+              <p className="text-sm text-gray-500">{user.email}</p>
             </div>
+            {user.picture && (
+              <img src={user.picture} alt={user.name} className="w-10 h-10 rounded-full border border-[#5B8FC3]/40" />
+            )}
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 rounded-full border border-[#5B8FC3] text-[#5B8FC3] font-semibold hover:bg-[#5B8FC3] hover:text-white transition-colors"
+            >
+              Cerrar sesión
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Section */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
-            Bienvenido, Profesor {user.name.split(' ')[0]} 👨‍🏫
-          </h2>
-          <p className="text-gray-600">
-            Gestiona tus clases, tareas y monitorea el progreso de tus estudiantes.
-          </p>
-        </div>
+      <main className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          {MOCK_DASHBOARD.stats.map((stat) => (
+            <div key={stat.id} className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">{stat.label}</p>
+                {STAT_ICON_RENDERERS[stat.iconType]?.() ?? <BarChart3 className="w-6 h-6 text-[#5B8FC3]" />}
+              </div>
+              <p className="text-3xl font-bold text-[#2F4A6A]">{stat.value}</p>
+              <p className="text-sm text-gray-500">{stat.hint}</p>
+            </div>
+          ))}
+        </section>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">Cursos Activos</h3>
-            <p className="text-4xl font-bold text-primary">
-              {statBlocks?.active_courses?.count ?? '-'}
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              {statBlocks?.active_courses?.summary ?? 'Sincronizando...'}
-            </p>
-          </div>
-
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">Tareas Pendientes</h3>
-            <p className="text-4xl font-bold text-secondary">
-              {statBlocks?.pending_reviews?.count ?? '-'}
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              {statBlocks?.pending_reviews?.summary ?? 'Sincronizando...'}
-            </p>
-          </div>
-
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">Alertas Activas</h3>
-            <p className="text-4xl font-bold text-red-500">
-              {statBlocks?.active_alerts?.count ?? '-'}
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              {statBlocks?.active_alerts?.summary ?? 'Sincronizando...'}
-            </p>
-          </div>
-
-          <div className="card">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">Asistencia Hoy</h3>
-            <p className="text-4xl font-bold text-accent">
-              {statBlocks?.today_attendance?.count
-                ? `${statBlocks.today_attendance.count}%`
-                : '-'}
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              {statBlocks?.today_attendance?.summary ?? 'Sincronizando...'}
-            </p>
-          </div>
-        </div>
-
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Clases de Hoy */}
-          <div className="card">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">📚 Clases de Hoy</h3>
-            <div className="space-y-3">
-              {dashboard?.today_classes?.length ? (
-                dashboard.today_classes.map((course, index) => {
-                  const tone = getToneClasses(course.badge)
-                  return (
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm p-6 border border-slate-100">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-[#5B8FC3]" />
+                Asistencia por grupo
+              </h2>
+              <span className="text-xs font-semibold text-[#5B8FC3] bg-[#E8F1FB] px-3 py-1 rounded-full">Actualizado hoy 07:45</span>
+            </div>
+            <div className="space-y-4">
+              {MOCK_DASHBOARD.attendanceByGroup.map((row) => (
+                <div key={row.label}>
+                  <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
+                    <span className="font-medium">{row.label}</span>
+                    <span className="font-semibold text-gray-900">{row.value}%</span>
+                  </div>
+                  <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      key={`${course.title}-${course.time}-${index}`}
-                      className={tone.container}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-semibold text-gray-900">{course.title}</p>
-                          <p className="text-sm text-gray-600">{course.group}</p>
-                        </div>
-                        <span className={`text-sm font-semibold ${tone.accent}`}>
-                          {course.time}
-                        </span>
+                      className="h-full rounded-full bg-gradient-to-r from-[#5B8FC3] via-[#4A7FB0] to-[#347FB5]"
+                      style={{ width: `${row.value}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-100 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <LineChart className="w-5 h-5 text-[#5B8FC3]" />
+                Entregas recientes
+              </h2>
+              <Link to="/dashboard/profesor/grupos/math3/math3A/calificaciones" className="text-xs font-semibold text-[#5B8FC3] hover:underline">
+                Ver detalle →
+              </Link>
+            </div>
+
+            <div className="space-y-4">
+              {MOCK_DASHBOARD.submissionsByGroup.map((row) => {
+                const total = row.onTime + row.late
+                const onTimePercent = Math.round((row.onTime / total) * 100)
+                const latePercent = 100 - onTimePercent
+                return (
+                  <div key={row.label} className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium text-gray-600">{row.label}</span>
+                      <span className="text-xs text-gray-500">{total} envíos</span>
+                    </div>
+                    <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                      <div className="bg-[#5B8FC3]" style={{ width: `${onTimePercent}%` }}></div>
+                      <div className="bg-amber-400" style={{ width: `${latePercent}%` }}></div>
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>{onTimePercent}% a tiempo</span>
+                      <span>{latePercent}% retraso</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-[#5B8FC3]" />
+              Promedio general por grupo
+            </h2>
+            <button className="text-sm font-semibold text-[#5B8FC3] hover:underline">Ver historial →</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {MOCK_DASHBOARD.gradeByGroup.map((item) => (
+              <div key={item.label} className="border border-slate-100 rounded-xl p-4 bg-slate-50/50">
+                <p className="text-sm font-semibold text-gray-700">{item.label}</p>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-[#2F4A6A]">{item.value.toFixed(1)}</span>
+                  <span className={`text-sm font-semibold ${item.delta.startsWith('+') ? 'text-emerald-600' : 'text-amber-500'}`}>
+                    {item.delta}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-gray-500">Seguimiento mensual de evaluaciones sumativas</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 lg:col-span-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Mis clases</h2>
+              <span className="text-xs text-gray-500 uppercase">Demo desktop</span>
+            </div>
+            {MOCK_DASHBOARD.courses.map((course) => {
+              const isSelected = course.id === selectedCourseId
+              return (
+                <div
+                  key={course.id}
+                  className={`rounded-2xl border shadow-sm transition-all cursor-pointer ${
+                    isSelected ? 'border-[#5B8FC3] bg-[#E8F1FB]' : 'border-slate-100 bg-white hover:border-[#5B8FC3]/40'
+                  }`}
+                  onClick={() => setSelectedCourseId(course.id)}
+                >
+                  <div className="p-5 flex items-start gap-4">
+                    <div className="text-3xl">{course.icon}</div>
+                    <div className="flex-1">
+                      <h3 className="text-base font-semibold text-gray-900">{course.title}</h3>
+                      <p className="text-sm text-gray-500">{course.gradeLevel}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {course.groups.map((group) => {
+                          const groupSelected = group.id === selectedGroupId && isSelected
+                          return (
+                            <button
+                              key={group.id}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setSelectedCourseId(course.id)
+                                setSelectedGroupId(group.id)
+                                setGroupTab('overview')
+                              }}
+                              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
+                                groupSelected
+                                  ? 'bg-[#5B8FC3] text-white border-[#5B8FC3]'
+                                  : 'bg-white text-[#5B8FC3] border-[#5B8FC3]/40 hover:bg-[#E8F1FB]'
+                              }`}
+                            >
+                              {group.label}
+                            </button>
+                          )
+                        })}
                       </div>
                     </div>
-                  )
-                })
-              ) : (
-                <p className="text-sm text-gray-500">No hay clases programadas para hoy.</p>
-              )}
-            </div>
-            <button className="btn-primary w-full mt-4">Ver Todos los Cursos</button>
-          </div>
-
-          {/* Tareas Recientes */}
-          <div className="card">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">📝 Tareas por Calificar</h3>
-            <div className="space-y-3">
-              {dashboard?.pending_assignments?.length ? (
-                dashboard.pending_assignments.map((assignment, index) => {
-                  const tone = getToneClasses(assignment.tone)
-                  return (
-                    <div
-                      key={`${assignment.title}-${index}`}
-                      className={tone.container}
-                    >
-                      <p className="font-semibold text-gray-900">{assignment.title}</p>
-                      <p className="text-sm text-gray-600">{assignment.detail}</p>
-                    </div>
-                  )
-                })
-              ) : (
-                <p className="text-sm text-gray-500">Sin tareas por calificar.</p>
-              )}
-            </div>
-            <button className="btn-primary w-full mt-4">Ir a Calificaciones</button>
-          </div>
-
-          {/* Alertas de Estudiantes */}
-          <div className="card">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">⚠️ Alertas de Estudiantes</h3>
-            <div className="space-y-3">
-              {dashboard?.alerts?.length ? (
-                dashboard.alerts.map((alert) => (
-                  <div key={alert.student} className="p-4 bg-red-50 border-l-4 border-red-500 rounded">
-                    <p className="font-semibold text-gray-900">{alert.student}</p>
-                    <p className="text-sm text-gray-600">{alert.detail}</p>
-                    <button className="text-sm text-red-600 font-semibold mt-2 hover:underline">
-                      Ver detalles →
-                    </button>
                   </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500">Sin alertas activas.</p>
-              )}
-            </div>
-            <button className="btn-secondary w-full mt-4">Ver Todas las Alertas</button>
+                </div>
+              )
+            })}
           </div>
 
-          {/* Acciones Rápidas */}
-          <div className="card">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">⚡ Acciones Rápidas</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <button className="p-4 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-center">
-                <span className="text-2xl mb-2 block">➕</span>
-                <span className="text-sm font-semibold">Nueva Tarea</span>
-              </button>
-              <button className="p-4 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors text-center">
-                <span className="text-2xl mb-2 block">📢</span>
-                <span className="text-sm font-semibold">Anuncio</span>
-              </button>
-              <button className="p-4 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors text-center">
-                <span className="text-2xl mb-2 block">✓</span>
-                <span className="text-sm font-semibold">Pasar Lista</span>
-              </button>
-              <button className="p-4 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-center">
-                <span className="text-2xl mb-2 block">📊</span>
-                <span className="text-sm font-semibold">Reportes</span>
-              </button>
-            </div>
-          </div>
-        </div>
+          <div className="col-span-12 lg:col-span-8 bg-white rounded-2xl shadow-sm border border-slate-100">
+            {selectedGroup ? (
+              <div className="p-6 space-y-6">
+                <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase text-gray-500 tracking-widest">{selectedCourse?.title}</p>
+                    <h2 className="text-2xl font-bold text-gray-900">{selectedGroup.label}</h2>
+                    <p className="text-sm text-gray-500">{selectedGroup.schedule}</p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
+                    <MiniStat icon={<Users2 className="w-4 h-4 text-[#5B8FC3]" />} label="Estudiantes" value={selectedGroup.students} />
+                    <MiniStat icon={<CalendarDays className="w-4 h-4 text-[#4A7FB0]" />} label="Asistencia" value={`${selectedGroup.attendance}%`} />
+                    <MiniStat icon={<SmallClipboardIcon />} label="Entregas" value={selectedGroup.submissions ? `${selectedGroup.submissions}%` : 'N/A'} />
+                    <MiniStat icon={<TrendingUp className="w-4 h-4 text-emerald-500" />} label="Promedio" value={selectedGroup.avgGrade ? selectedGroup.avgGrade.toFixed(1) : '—'} />
+                  </div>
+                </header>
 
-        {/* Estadísticas Generales */}
-        <div className="card mt-6">
-          <h3 className="text-xl font-bold text-gray-900 mb-4">📈 Estadísticas Generales</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <p className="text-3xl font-bold text-primary">
-                {dashboard?.general_stats?.average_grade ?? '-'}
-              </p>
-              <p className="text-sm text-gray-600 mt-1">Promedio General</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-secondary">
-                {dashboard?.general_stats?.delivery_rate
-                  ? `${dashboard.general_stats.delivery_rate}%`
-                  : '-'}
-              </p>
-              <p className="text-sm text-gray-600 mt-1">Tasa de Entrega</p>
-            </div>
-            <div className="text-center">
-              <p className="text-3xl font-bold text-accent">
-                {dashboard?.general_stats?.attendance_rate
-                  ? `${dashboard.general_stats.attendance_rate}%`
-                  : '-'}
-              </p>
-              <p className="text-sm text-gray-600 mt-1">Asistencia Promedio</p>
-            </div>
+                <div className="flex flex-wrap gap-3">
+                  {['overview', 'attendance', 'grades'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setGroupTab(tab)}
+                      className={`px-5 py-2 rounded-full text-sm font-semibold transition-colors border ${
+                        groupTab === tab ? 'bg-[#5B8FC3] text-white border-[#5B8FC3]' : 'text-[#5B8FC3] border-[#5B8FC3]/50 bg-white hover:bg-[#E8F1FB]'
+                      }`}
+                    >
+                      {tab === 'overview' && 'Resumen'}
+                      {tab === 'attendance' && 'Asistencia'}
+                      {tab === 'grades' && 'Calificaciones'}
+                    </button>
+                  ))}
+                </div>
+
+                <ActionPills courseId={selectedCourse?.id} groupId={selectedGroup.id} />
+
+                {groupTab === 'overview' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Prioridades del grupo</h3>
+                      <div className="space-y-3">
+                        {selectedGroup.insights.map((insight, index) => (
+                          <div key={index} className="p-4 rounded-xl bg-[#E8F1FB] text-[#2F4A6A] text-sm font-medium">
+                            {insight}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4">
+                        <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Próximas entregas</h4>
+                        <div className="space-y-3">
+                          {selectedGroup.upcoming.map((item, index) => (
+                            <div key={index} className="p-4 rounded-xl border border-slate-100 flex items-start justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                                <p className="text-xs text-gray-500 mt-1">{item.due}</p>
+                              </div>
+                              <span className="text-xs font-semibold text-[#5B8FC3] bg-[#E8F1FB] px-3 py-1 rounded-full capitalize">{item.type}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                          <Award className="w-4 h-4 text-[#5B8FC3]" />
+                          Reconocimientos
+                        </h3>
+                        <div className="space-y-3">
+                          {selectedGroup.topStudents.map((student) => (
+                            <div key={student.name} className="p-4 bg-white border border-[#5B8FC3]/20 rounded-xl flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-gray-900">{student.name}</p>
+                                <p className="text-xs text-gray-500">Promedio: {student.score}</p>
+                              </div>
+                              <span className="text-xs font-semibold text-emerald-600 bg-emerald-100 px-3 py-1 rounded-full">Entregas {student.submissions}</span>
+                            </div>
+                          ))}
+                          {!selectedGroup.topStudents.length && <p className="text-sm text-gray-500">Usa este espacio para destacar avances o esfuerzos del grupo.</p>}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-500" />
+                          Seguimiento personalizado
+                        </h3>
+                        <div className="space-y-3">
+                          {selectedGroup.pendingSupport.map((item) => (
+                            <div key={item.name} className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-amber-900">{item.name}</p>
+                                <p className="text-xs text-amber-700 mt-1">{item.note}</p>
+                              </div>
+                              <span className="text-xs font-semibold text-amber-900 bg-amber-200 px-3 py-1 rounded-full">{item.tag}</span>
+                            </div>
+                          ))}
+                          {!selectedGroup.pendingSupport.length && <p className="text-sm text-gray-500">¡Excelente! No tienes alertas pendientes para este grupo.</p>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {groupTab === 'attendance' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Asistencia semanal</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {selectedGroup.attendanceTrend.map((item) => (
+                          <div key={item.label} className="p-4 border border-slate-100 rounded-xl bg-slate-50/50">
+                            <p className="text-xs text-gray-500 uppercase">{item.label}</p>
+                            <p className="text-xl font-semibold text-[#2F4A6A] mt-1">{item.value}%</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="border border-slate-100 rounded-xl p-5 bg-white">
+                      <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Puntos de atención</h4>
+                      <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
+                        {selectedGroup.insights.map((item, index) => (
+                          <li key={index}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+
+                {groupTab === 'grades' && (
+                  <div className="space-y-6">
+                    <div className="border border-slate-100 rounded-xl p-5 bg-white">
+                      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">Promedio global</h3>
+                      <div className="flex items-baseline gap-4">
+                        <p className="text-4xl font-bold text-[#2F4A6A]">{selectedGroup.avgGrade ? selectedGroup.avgGrade.toFixed(1) : '—'}</p>
+                        <span className="text-sm text-emerald-600 flex items-center gap-1">
+                          <TrendingUp className="w-4 h-4" />
+                          Tendencia positiva
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">Basado en entregas de la última evaluación quincenal.</p>
+                    </div>
+                    <div className="border border-slate-100 rounded-xl p-5 bg-white">
+                      <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Próximas calificaciones por registrar</h4>
+                      <div className="space-y-3">
+                        {selectedGroup.upcoming.map((item, index) => (
+                          <div key={index} className="p-4 bg-[#E8F1FB] rounded-xl flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                              <p className="text-xs text-gray-500 mt-1">{item.due}</p>
+                            </div>
+                            <button className="text-xs font-semibold text-[#5B8FC3] hover:underline">Programar rúbrica →</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-10 text-center text-gray-500">Selecciona un grupo para revisar su información detallada.</div>
+            )}
           </div>
-        </div>
+        </section>
       </main>
     </div>
   )
 }
 
+function ActionPills({ courseId, groupId }) {
+  return (
+    <div className="flex flex-wrap gap-3">
+      {ACTION_LINKS.map((link) => (
+        <Link
+          key={link.to}
+          to={link.to.includes(':') ? link.to.replace(':courseId', courseId).replace(':groupId', groupId) : link.to}
+          className="px-4 py-2 rounded-full bg-[#E8F1FB] text-[#2F4A6A] text-sm font-semibold hover:bg-[#d9e9fb] transition-colors"
+        >
+          <span className="mr-2">{link.icon}</span>
+          {link.label}
+        </Link>
+      ))}
+    </div>
+  )
+}
+
+function MiniStat({ icon, label, value }) {
+  return (
+    <div className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 flex flex-col gap-1">
+      <div className="flex items-center gap-2 text-xs text-gray-500 uppercase tracking-wide">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <span className="text-lg font-semibold text-[#2F4A6A]">{value}</span>
+    </div>
+  )
+}
+
+function SmallClipboardIcon() {
+  return (
+    <svg
+      className="w-4 h-4 text-[#4A7FB0]"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M16 4h1a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1" />
+      <rect x="9" y="2" width="6" height="4" rx="1" />
+      <path d="M9 12h6" />
+      <path d="M9 16h3" />
+    </svg>
+  )
+}
+
 export default TeacherDashboard
+

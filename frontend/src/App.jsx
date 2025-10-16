@@ -5,6 +5,9 @@ import StudentDashboard from './pages/StudentDashboard'
 import TeacherDashboard from './pages/TeacherDashboard'
 import CourseDetail from './pages/CourseDetail'
 import AssignmentDetail from './pages/AssignmentDetail'
+import TeacherGroups from './pages/TeacherGroups'
+import TeacherGroupAttendance from './pages/TeacherGroupAttendance'
+import TeacherGroupGrades from './pages/TeacherGroupGrades'
 
 function HomePage() {
   return (
@@ -51,6 +54,9 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard/alumno" element={<StudentDashboard />} />
         <Route path="/dashboard/profesor" element={<TeacherDashboard />} />
+        <Route path="/dashboard/profesor/grupos" element={<TeacherGroups />} />
+        <Route path="/dashboard/profesor/grupos/:courseId/:groupId/asistencia" element={<TeacherGroupAttendance />} />
+        <Route path="/dashboard/profesor/grupos/:courseId/:groupId/calificaciones" element={<TeacherGroupGrades />} />
         <Route path="/curso/:courseId" element={<CourseDetail />} />
         <Route path="/curso/:courseId/tarea/:assignmentId" element={<AssignmentDetail />} />
       </Routes>

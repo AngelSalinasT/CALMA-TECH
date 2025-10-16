@@ -122,14 +122,22 @@ function Login() {
           )}
         </div>
 
-        <div className="mt-6 text-center">
+      <div className="mt-6 text-center">
+        <button
+          onClick={() => window.history.back()}
+          className="text-primary hover:underline text-sm"
+        >
+          Volver
+        </button>
+        <div className="mt-3">
           <button
-            onClick={() => window.history.back()}
-            className="text-primary hover:underline text-sm"
+            onClick={() => navigate('/dashboard/profesor')}
+            className="text-xs font-semibold text-[#5B8FC3] hover:underline"
           >
-            Volver
+            Ver demo del panel docente
           </button>
         </div>
+      </div>
       </div>
 
       <p className="text-sm text-gray-text mt-8">

@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { X, Send, Bot, Sparkles, MessageCircle } from 'lucide-react'
 
-function ChatbotPopup({ isOpen, onClose, userContext = {} }) {
+function ChatbotPopup({ isOpen, onClose, userContext = {}, initialUserMessage = null }) {
   const initialGreeting = useRef(false)
+  const autoPromptSentRef = useRef(false)
+  const lastInitialMessageRef = useRef(initialUserMessage)
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -31,6 +33,13 @@ function ChatbotPopup({ isOpen, onClose, userContext = {} }) {
       typingIntervalRef.current = null
     }
   }, [])
+
+  useEffect(() => {
+    if (initialUserMessage !== lastInitialMessageRef.current) {
+      lastInitialMessageRef.current = initialUserMessage
+      autoPromptSentRef.current = false
+    }
+  }, [initialUserMessage])
 
   useEffect(() => {
     if (!initialGreeting.current) {
@@ -248,6 +257,13 @@ function ChatbotPopup({ isOpen, onClose, userContext = {} }) {
     },
     [animateAssistantResponse, clearTypingInterval, conversationId, userContext]
   )
+
+  useEffect(() => {
+    if (isOpen && initialUserMessage && !autoPromptSentRef.current) {
+      autoPromptSentRef.current = true
+      handleSend(initialUserMessage)
+    }
+  }, [isOpen, initialUserMessage, handleSend])
 
   const sendMessage = () => {
     const trimmed = inputMessage.trim()

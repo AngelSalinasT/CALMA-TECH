@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Clock, FileText, Link as LinkIcon, Video, CheckCircle, XCircle, AlertCircle, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Clock, FileText, Link as LinkIcon, Video, CheckCircle, XCircle, AlertCircle, ExternalLink, MessageCircle } from 'lucide-react'
+import ChatbotPopup from '../components/ChatbotPopup'
 
 function AssignmentDetail() {
   const { courseId, assignmentId } = useParams()
   const [assignment, setAssignment] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [isChatOpen, setIsChatOpen] = useState(false)
+  const autoOpenRef = useRef(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -43,6 +46,13 @@ function AssignmentDetail() {
 
     fetchAssignmentDetail()
   }, [courseId, assignmentId, navigate])
+
+  useEffect(() => {
+    if (assignment && !autoOpenRef.current) {
+      autoOpenRef.current = true
+      setIsChatOpen(true)
+    }
+  }, [assignment])
 
   const getStatusColor = (status) => {
     if (status === 'critical') return 'bg-red-100 text-red-800'
@@ -107,6 +117,16 @@ function AssignmentDetail() {
   }
 
   const submissionStatus = getSubmissionStatus(assignment?.submission)
+  const assignmentTitle = assignment?.assignment?.title || 'esta tarea'
+  const initialHelperMessage = assignment
+    ? `Hola, ¿me ayudas a iniciar la tarea "${assignmentTitle}"? ¿Qué primer paso me recomiendas?`
+    : null
+  const chatbotContext = {
+    assignment: assignment?.assignment,
+    submission: assignment?.submission,
+    courseId,
+    assignmentId
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-6">
@@ -234,11 +254,31 @@ function AssignmentDetail() {
           <p className="text-white/90 text-sm mb-4">
             Nuestro asistente IA puede ayudarte a entender mejor la tarea y organizar tu trabajo.
           </p>
-          <button className="w-full bg-white text-[#5B8FC3] px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-colors">
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="w-full bg-white text-[#5B8FC3] px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition-colors"
+          >
             Hablar con el Asistente
           </button>
         </div>
       </main>
+
+      {/* Chatbot Floating Button */}
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-24 right-4 w-14 h-14 bg-gradient-to-r from-[#5B8FC3] to-[#4A7FB0] text-white rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 flex items-center justify-center z-40"
+        >
+          <MessageCircle className="w-6 h-6" />
+        </button>
+      )}
+
+      <ChatbotPopup
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        userContext={chatbotContext}
+        initialUserMessage={initialHelperMessage}
+      />
     </div>
   )
 }
